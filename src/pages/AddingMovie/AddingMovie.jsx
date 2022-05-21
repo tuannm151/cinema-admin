@@ -67,12 +67,17 @@ const AddingMovie = () => {
         alwaysKeepResolution: true,
         fileType: "image/png",
       });
+      const coverImgCompressed = imageCompression(img, {
+        maxSizeMB: 3,
+        maxWidthOrHeight: 1920,
+        fileType: "image/png",
+      });
       const imgRef = ref(storage, `posters/${data.urlId}.png`);
       const coverRef = ref(storage, `covers/${data.urlId}-cover.png`);
 
       setStatus("Tải lên ảnh...");
       await uploadBytes(imgRef, compressedFile);
-      await uploadBytes(coverRef, compressedFile);
+      await uploadBytes(coverRef, coverImgCompressed);
 
       setStatus("Tải lên dữ liệu...");
       const imageUrl = await getDownloadURL(imgRef);
