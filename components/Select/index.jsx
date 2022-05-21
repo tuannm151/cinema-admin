@@ -8,6 +8,7 @@ const Select = ({
   options,
   defaultValue = options[0].value,
   isLoading = false,
+  onChange = () => {},
 }) => {
   const labelEl = isLoading ? (
     <SkeletonTheme>
@@ -26,6 +27,7 @@ const Select = ({
       className="select select-bordered w-full"
       {...register(name)}
       defaultValue={defaultValue}
+      onChange={onChange}
       required
     >
       <option value={options[0].value} disabled={disableDefault}>

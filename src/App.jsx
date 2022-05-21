@@ -13,6 +13,9 @@ import EditMovie from "./pages/EditMovie";
 import { ReactQueryDevtools } from "react-query/devtools";
 
 import { QueryClient, QueryClientProvider } from "react-query";
+import AddingCinema from "./pages/AddingCinema";
+import AddingRoom from "./pages/AddingRoom";
+import AddingSchedule from "./pages/AddingSchedule";
 
 const queryClient = new QueryClient();
 
@@ -33,7 +36,10 @@ function App() {
       <Routes>
         <Route exact path="/" element={<Dashboard />} />
         <Route path="/movies/add-movie" element={<AddingMovie />} />
-        <Route path="/movies/edit-movie/" element={<EditMovie />} />
+        <Route path="/movies/edit-movie" element={<EditMovie />} />
+        <Route path="/cinema/add-cinema" element={<AddingCinema />} />
+        <Route path="/cinema/add-room" element={<AddingRoom />} />
+        <Route path="/cinema/add-schedule" element={<AddingSchedule />} />
       </Routes>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>

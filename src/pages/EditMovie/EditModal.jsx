@@ -40,8 +40,8 @@ const tabs = [
 const uploadImage = async (img, ref) => {
   if (!(img instanceof Blob)) return;
   const compressedFile = await imageCompression(img, {
-    maxSizeMB: 1.5,
-    alwaysKeepResolution: true,
+    maxSizeMB: 2,
+    maxWidthOrHeight: 1920,
     fileType: "image/png",
   });
   await uploadBytes(ref, compressedFile);
@@ -67,8 +67,8 @@ const EditModal = ({ onSuccessUpdate, onClose, movieId }) => {
 
   const [currentTab, setCurrentTab] = useState(tabs[0]);
   const { register, handleSubmit } = useForm();
-  const [img, setImg] = useState();
   const [status, setStatus] = useState();
+  const [img, setImg] = useState();
   const [coverImg, setCoverImg] = useState();
   const handleChangeTab = (tab) => {
     if (data.isLoading) return;
@@ -76,6 +76,7 @@ const EditModal = ({ onSuccessUpdate, onClose, movieId }) => {
   };
 
   const onSubmit = async (newData) => {
+    if (status) return;
     try {
       const oldData = data.data;
       if (!oldData) return;
@@ -104,8 +105,11 @@ const EditModal = ({ onSuccessUpdate, onClose, movieId }) => {
     } catch (e) {
       console.log(e);
       toast.error("Sửa thông tin thất bại", toastConfig);
+    } finally {
+      setStatus(undefined);
     }
   };
+
   return (
     <>
       <Toast />
@@ -153,7 +157,7 @@ const EditModal = ({ onSuccessUpdate, onClose, movieId }) => {
             )}
             {currentTab.id === "coverImg" && (
               <form className="w-full h-full flex flex-col justify-center items-center gap-4">
-                <h1 className="text-2xl font-bold">Chọn ảnh trailer mới</h1>
+                <h1 className="text-2xl font-bold">Chọn ảnh cover mới</h1>
                 <UploadingImg onSetImg={setCoverImg} img={coverImg} />
               </form>
             )}

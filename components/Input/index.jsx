@@ -28,8 +28,8 @@ const Input = ({
       type={type}
       placeholder={placeholder}
       className="input input-bordered w-full max-w-xs"
-      {...register(name, { required })}
       defaultValue={defaultValue}
+      {...register(name, { required })}
     />
   );
   return (

@@ -27,7 +27,7 @@ const tabs = [
     id: "posterImg",
   },
   {
-    label: "Thêm ảnh trailer",
+    label: "Thêm ảnh cover",
     id: "coverImg",
   },
 ];
@@ -41,9 +41,9 @@ const AddingMovie = () => {
   const [tabIndex, setTabIndex] = useState(0);
   const { register, handleSubmit, reset } = useForm();
   const [data, setData] = useState({});
+  const [status, setStatus] = useState();
   const [img, setImg] = useState();
   const [coverImg, setCoverImg] = useState();
-  const [status, setStatus] = useState();
 
   const resetState = () => {
     setData({});
@@ -59,7 +59,7 @@ const AddingMovie = () => {
     setTabIndex((prev) => prev - 1);
   };
   const uploadData = async () => {
-    console.log(img);
+    if (status) return;
     try {
       if (!img) return;
       const compressedFile = await imageCompression(img, {
