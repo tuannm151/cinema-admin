@@ -90,7 +90,10 @@ const EditModal = ({ onSuccessUpdate, onClose, movieId }) => {
       const { rating, votes, ...movieData } = newData;
       setStatus("Đang tải lên dữ liệu...");
       await runTransaction(db, async (transaction) => {
-        transaction.update(movieRef, movieData);
+        transaction.update(movieRef, {
+          ...movieData,
+          duration: parseInt(movieData.duration),
+        });
         transaction.update(oldData.ratingRef, {
           rating,
           votes,

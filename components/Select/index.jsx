@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 const Select = ({
   label,
@@ -50,4 +50,4 @@ const Select = ({
   );
 };
 
-export default Select;
+export default memo(Select);

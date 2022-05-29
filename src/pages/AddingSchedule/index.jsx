@@ -1,6 +1,14 @@
 import { useFirestoreQuery } from "@react-query-firebase/firestore";
-import { collection, query, where } from "firebase/firestore";
-import React from "react";
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  runTransaction,
+  setDoc,
+  where,
+} from "firebase/firestore";
+import React, { useMemo } from "react";
 import { toast } from "react-toastify";
 import { useState, useEffect } from "react";
 import Input from "../../../components/Input";
@@ -11,6 +19,7 @@ import { toastConfig } from "../../../toastConfig";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import { useForm } from "react-hook-form";
+import { parseISOLocal, timeStampToTimeString } from "../../utils/timeConvert";
 
 const tabs = [
   {
@@ -24,11 +33,12 @@ const tabs = [
 ];
 const AddingSchedule = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { register, handleSubmit, reset, watch } = useForm();
+  const { register, handleSubmit, reset, watch, setValue } = useForm();
 
   const [status, setStatus] = useState();
   const [region, setRegion] = useState();
   const [cinemaId, setCinemaId] = useState();
+  const [movieId, setMovieId] = useState();
 
   const moviesQuery = useFirestoreQuery(
     ["movies"],
@@ -56,19 +66,38 @@ const AddingSchedule = () => {
       enabled: !!region,
     }
   );
-  const onChangeCinema = () => {
-    setCinemaId(watch("cinema"));
-  };
   const snapshot = cinemasQuery.data;
   const cinemas = snapshot?.docs.map((doc) => ({
     ...doc.data(),
     id: doc.id,
   }));
+
+  const showTypesQuery = useFirestoreQuery(
+    ["showType"],
+    collection(db, "showTypes")
+  );
+
+  const showTypesSnapshot = showTypesQuery.data;
+  const showTypes = showTypesSnapshot?.docs.map((doc) => ({
+    ...doc.data(),
+    id: doc.id,
+  }));
   useEffect(() => {
-    console.log(cinemaId);
     if (!cinemas || cinemaId) return;
     setCinemaId(cinemas[0].id);
-  }, [cinemas]);
+    setValue("cinemaId", cinemas[0].id);
+    setValue("room", cinemas[0].rooms[0].name);
+  }, [cinemasQuery]);
+
+  useEffect(() => {
+    if (!showTypes) return;
+    setValue("showType", showTypes[0].name);
+  }, [showTypesQuery]);
+
+  useEffect(() => {
+    if (!docDatas) return;
+    setValue("movieId", docDatas[0].id);
+  }, [moviesQuery]);
 
   const cinemaOptions =
     cinemas?.length > 0
@@ -83,21 +112,35 @@ const AddingSchedule = () => {
           },
         ];
 
-  console.log(cinemas);
-  console.log(docDatas);
-  const movieOptions = docDatas?.map((doc) => ({
-    label: doc.title,
-    value: doc.id,
-  })) || [
-    {
-      label: "Chọn phim",
-      value: "",
-    },
-  ];
+  const movieOptions = useMemo(() => {
+    return (
+      docDatas?.map((doc) => ({
+        label: doc.title,
+        value: doc.id,
+      })) || [
+        {
+          label: "Chọn phim",
+          value: "",
+        },
+      ]
+    );
+  }, [moviesQuery]);
 
-  console.log(cinemaId);
+  const showTypeOptions = useMemo(() => {
+    return (
+      showTypes?.map((showType) => ({
+        label: showType.name,
+        value: showType.name,
+      })) || [
+        {
+          label: "Chọn loại show",
+          value: "",
+        },
+      ]
+    );
+  }, [showTypesQuery]);
+
   const cinemaData = cinemas?.find((cinema) => cinema.id === cinemaId);
-  console.log(cinemaData);
   const roomOptions = cinemaData
     ? cinemaData?.rooms?.map((room) => ({
         label: room?.name,
@@ -109,20 +152,142 @@ const AddingSchedule = () => {
           value: "",
         },
       ];
+
   const onSubmit = async (newData) => {
     try {
       setStatus("Tải lên dữ liệu");
+      console.log(newData);
+      // cinema: "Md4ltDZ7uzWg6QMIbbBc";
+      // date: "2022-05-25";
+      // movie: "7MQlvLGX0L4pF6KlcQ5S";
+      // region: "hanoi";
+      // room: "Cinema 05";
+      // showType: "IMAX 2D";
+      // time: "20:05";
+      // parse timestamp to UTC
+      const {
+        cinemaId,
+        date,
+        time,
+        movieId,
+        region,
+        room: roomName,
+        showType,
+      } = newData;
+      const movieDuration = docDatas?.find(
+        (movie) => movie.id === movieId
+      )?.duration;
+
+      const dateTimestamp = parseISOLocal(date + "T00:00:00").getTime();
+      const timeTimestamp = parseISOLocal(date + "T" + time + ":00").getTime();
+      const delayTime = 5;
+      const endTimestamp =
+        timeTimestamp + (parseInt(movieDuration) + delayTime) * 60 * 1000;
+
+      if (!dateTimestamp || !timeTimestamp) {
+        throw new Error("Sai dữ liệu");
+      }
+      const schedulesQuery = query(
+        collection(db, "schedules"),
+        where("movieId", "==", movieId),
+        where("region", "==", region),
+        where("timestamp", "==", dateTimestamp)
+      );
+      const hourSchedulesQuery = query(
+        collection(db, "schedulesByRoom"),
+        where("cinemaId", "==", cinemaId),
+        where("room", "==", roomName),
+        where("endTimestamp", ">=", timeTimestamp)
+      );
+
+      const schedulesSnapshot = await getDocs(schedulesQuery);
+
+      const scheduleDoc = schedulesSnapshot.docs?.[0];
+      const hourSchedulesSnapshot = await getDocs(hourSchedulesQuery);
+
+      await runTransaction(db, async (transaction) => {
+        const cinemaDoc = await transaction.get(doc(db, "cinemas", cinemaId));
+        if (hourSchedulesSnapshot.docs.length > 0) {
+          for (const hourSchedule of hourSchedulesSnapshot.docs) {
+            const hourScheduleData = hourSchedule.data();
+            const { startTimestamp: start, endTimestamp: end } =
+              hourScheduleData;
+            if (start <= endTimestamp) {
+              throw new Error(
+                `Khung thời gian đã tồn tại ${timeStampToTimeString(
+                  start
+                )} - ${timeStampToTimeString(end)}`
+              );
+            }
+          }
+        }
+        transaction.set(doc(collection(db, "schedulesByRoom")), {
+          cinemaId,
+          movieId,
+          room: roomName,
+          startTimestamp: timeTimestamp,
+          endTimestamp: endTimestamp,
+        });
+
+        const cinemaData = cinemaDoc.data();
+        const roomBootstrap = cinemaData.rooms.find(
+          (room) => room.name === roomName
+        );
+
+        const roomShiftRef = doc(collection(db, "roomShift"));
+        transaction.set(roomShiftRef, roomBootstrap);
+
+        const newHourSchedule = {
+          showType: showType,
+          startTimestamp: timeTimestamp,
+          endTimestamp,
+          room: roomName,
+          roomShiftPath: roomShiftRef.path,
+        };
+
+        const newCinemaSchedule = {
+          id: cinemaId,
+          name: cinemaData.name,
+          hourSchedules: [newHourSchedule],
+        };
+
+        const newDailySchedule = {
+          movieId,
+          timestamp: dateTimestamp,
+          region,
+          cinemaSchedules: [newCinemaSchedule],
+        };
+
+        if (!scheduleDoc?.exists()) {
+          transaction.set(doc(collection(db, "schedules")), newDailySchedule);
+          return;
+        }
+
+        const scheduleData = scheduleDoc.data();
+
+        const { cinemaSchedules } = scheduleData;
+        const cinemaSchedule = cinemaSchedules.find(
+          (cinema) => cinema.id === cinemaId
+        );
+        if (cinemaSchedule) {
+          const { hourSchedules } = cinemaSchedule;
+          hourSchedules.push(newHourSchedule);
+        } else {
+          cinemaSchedules.push(newCinemaSchedule);
+        }
+        transaction.update(doc(db, "schedules", scheduleDoc.id), {
+          cinemaSchedules,
+        });
+      });
 
       setStatus("Tải lên thành công");
-      toast.success("Thêm phòng chiếu thành công", toastConfig);
+      toast.success("Thêm lịch chiếu thành công", toastConfig);
     } catch (err) {
-      console.log(err);
-      toast.error("Có lỗi xảy ra", toastConfig);
+      console.error(err);
+      toast.error(`Có lỗi xảy ra. ${err.message}`, toastConfig);
     } finally {
       setTimeout(() => {
-        reset();
         setStatus(undefined);
-        setRegion(undefined);
       }, 3000);
     }
   };
@@ -169,14 +334,12 @@ const AddingSchedule = () => {
                     onChange={(e) => setRegion(e.target?.value || undefined)}
                   />
                   <Select
-                    name="cinema"
+                    name="cinemaId"
                     label="Chọn rạp"
                     register={register}
                     disableDefault={false}
                     options={cinemaOptions}
-                    onChange={(e) =>
-                      onChangeCinema(e.target?.value || undefined)
-                    }
+                    onChange={(e) => setCinemaId(e.target?.value || undefined)}
                   />
                   <Select
                     name="room"
@@ -186,7 +349,7 @@ const AddingSchedule = () => {
                     options={roomOptions}
                   />
                   <Select
-                    name="movie"
+                    name="movieId"
                     label="Chọn phim"
                     register={register}
                     disableDefault={false}
@@ -205,6 +368,14 @@ const AddingSchedule = () => {
                     register={register}
                     disableDefault={false}
                     type="time"
+                  />
+                  <Select
+                    name="showType"
+                    label="Loại chiếu"
+                    register={register}
+                    disableDefault={false}
+                    options={showTypeOptions}
+                    defaultValue={showTypeOptions[0] || ""}
                   />
                 </form>
                 <div className="self-end mt-4 flex gap-4">

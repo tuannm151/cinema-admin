@@ -53,7 +53,6 @@ const AddingMovie = () => {
     setTabIndex(0);
     reset();
   };
-
   const handleToPrev = () => {
     if (tabIndex === 0) return;
     setTabIndex((prev) => prev - 1);
@@ -67,7 +66,7 @@ const AddingMovie = () => {
         alwaysKeepResolution: true,
         fileType: "image/png",
       });
-      const coverImgCompressed = imageCompression(img, {
+      const coverImgCompressed = imageCompression(coverImg, {
         maxSizeMB: 3,
         maxWidthOrHeight: 1920,
         fileType: "image/png",
@@ -98,6 +97,7 @@ const AddingMovie = () => {
           imageUrl,
           coverUrl,
           ratingRef,
+          duration: parseInt(movieData.duration),
         });
       });
 

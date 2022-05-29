@@ -7,7 +7,7 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { set, useForm } from "react-hook-form";
 import { toast } from "react-toastify";
 import Input from "../../../components/Input";
@@ -41,10 +41,10 @@ const seatData = generateSeatData(12, 12);
 
 const AddingRoom = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { register, handleSubmit, reset } = useForm();
+  const { register, handleSubmit, reset, setValue } = useForm();
   const [status, setStatus] = useState();
   const [region, setRegion] = useState();
-  
+
   const ref = query(
     collection(db, "cinemas"),
     where("region", "==", region || "")
@@ -63,10 +63,25 @@ const AddingRoom = () => {
     id: doc.id,
   }));
 
+  useEffect(() => {
+    if (!cinemas) {
+      return;
+    }
+    setValue("cinema", cinemas[0].id);
+  }, [cinemasQuery]);
+
   const onSubmit = async (newData) => {
     try {
       setStatus("Tải lên dữ liệu");
       const cinema = cinemas.find((cinema) => cinema.id === newData.cinema);
+      const alreadyHasRoom = cinema.rooms.find(
+        (room) => room.name === newData.name
+      );
+      if (alreadyHasRoom) {
+        throw new Error("Phòng đã tồn tại");
+      }
+
+      console.log(newData.cinema);
       await setDoc(
         doc(db, "cinemas", newData.cinema),
         {
@@ -74,7 +89,7 @@ const AddingRoom = () => {
             ...cinema.rooms,
             {
               name: newData.name,
-              rowSize: newData.rowSize,
+              rowSize: parseInt(newData.rowSize),
               seatData,
             },
           ],
@@ -87,7 +102,7 @@ const AddingRoom = () => {
       toast.success("Thêm phòng chiếu thành công", toastConfig);
     } catch (err) {
       console.log(err);
-      toast.error("Có lỗi xảy ra", toastConfig);
+      toast.error(`Có lỗi xảy ra. ${err.message}`, toastConfig);
     } finally {
       setTimeout(() => {
         reset();
